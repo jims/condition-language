@@ -1,0 +1,40 @@
+# constants
+
+COMPILER = "g++"
+EXEC = "unit_test"
+# Use -DPLATFORM_BIG_ENDIAN for big endian platforms
+FLAGS = "-Wall -Wextra -g"
+
+OBJECTS = %w(condition_language.o unit_test.o)
+HEADERS = %w(condition_language.h)
+
+# tasks
+
+task :build => [EXEC]
+
+task :test => :build do
+	sh "./#{EXEC}"
+end
+
+task :default => :test
+
+desc "Clean stuff"
+task :clean do
+	files = (Dir["*.o"] + Dir["#{EXEC}"]).uniq
+	rm_f files unless files.empty?
+end
+
+# rules
+
+rule '.o' => '.cpp' do |target|
+	sh "#{COMPILER} #{FLAGS} -c -o #{target.name} #{target.source}"
+end
+
+file EXEC => OBJECTS do
+	sh "#{COMPILER} #{FLAGS} #{OBJECTS.join(" ")} -o #{EXEC}"
+end
+
+# dependencies
+
+file 'unit_test.o' => %w(unit_test.cpp) + HEADERS
+file 'condition_language.o' => %w(condition_language.cpp) + %w(condition_language.h)
