@@ -89,6 +89,8 @@ namespace {
 		PARSE(ternary, s, c);
 		whitespace(s);
 		char op = s[0];
+		if (op == '&' || op == '|')
+			return SUCCESS;
 
 		if (op == '&') {
 			CONSUME(s, '&');
