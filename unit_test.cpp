@@ -56,6 +56,12 @@ namespace instrinsic {
 	}
 }
 
+void test_empty_string() {
+	unsigned char stack[2];
+	condition_language::Result r = condition_language::run("", stack, sizeof(stack), 0, 0, hash, 0);
+	assert(r.exit_status == condition_language::PARSE_FAILURE);
+}
+
 void test_single_intrinsic() {
 	const char* source = "equal(A, A) && !!(equal(B, B) || equal(B, C))";
 	condition_language::Intrinsic intrin[] = {
@@ -98,6 +104,7 @@ void benchmark(const char* source, const char* defines[], unsigned runs) {
 }
 
 int main(int argc, char* argv[]) {
+	test_empty_string();
 	test_single_intrinsic();
 	test_several_intrinsics();
 

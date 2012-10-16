@@ -224,7 +224,9 @@ namespace {
 	}
 
 	inline Status parse_condition(const char*& s, Context& c) {
-		return parse_logical(s, c);
+		PARSE(logical, s, c);
+		CONSUME(s, '\0');
+		return SUCCESS;
 	}
 }
 

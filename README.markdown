@@ -31,6 +31,34 @@ Example usage
 		NULL);                      // User data pointer passed to the intrinsic function callbacks.
 	// The resulting value is available in r.value
 
+Grammar
+-------
+	CONDITION :=
+		LOGICAL '\0'
+	
+	LOGICAL :=
+		TERNARY LOGICAL_REST
+
+	LOGICAL_REST :=
+		'&&' LOGICAL
+		'||' LOGICAL
+		| ''
+
+	TERNARY :=
+		'!' TERNARY
+		| INTRINSIC
+
+	INTRINSIC :=
+		IDENTIFIER '(' PARAMETERS ')'
+		| '(' LOGICAL ')'
+
+	PARAMTERS :=
+		IDENTIFIER PARAMETERS_REST
+	
+	PARAMETERS_REST :=
+		',' PARAMETERS
+		| ''
+
 License
 -------
 It's released under the MIT license. Enjoy!
