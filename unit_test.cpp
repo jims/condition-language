@@ -93,8 +93,8 @@ void benchmark(const char* source, const char* defines[], unsigned runs) {
 	for (unsigned i = 0; i != runs; ++i)
 		condition_language::run(source, stack, sizeof(stack), intrin, 2, hash, &macros);
 	clock_t end = clock();
-	float total = (end - start) * (1000.f / CLOCKS_PER_SEC);
-	printf("Total %.2fms\nAvg: %.2fms/run\n\n", total, total / runs);
+	double total = (end - start) * (1000.0 / CLOCKS_PER_SEC);
+	printf("Total %.4fms\nAvg: %.4fms/run\n\n", total, total / runs);
 }
 
 int main(int argc, char* argv[]) {
@@ -102,8 +102,8 @@ int main(int argc, char* argv[]) {
 	test_several_intrinsics();
 
 	const char* macros[] = {"VAL1"};
-	benchmark("equal(A, A) && !!(equal(B, B) || equal(B, C))", macros, 10000);
-	benchmark("equal(A, A) && !!(equal(B, B) || equal(B, C)) && (!defined(DEFINED) || defined(VAL1))", macros, 10000);
+	benchmark("equal(A, A) && !!(equal(B, B) || equal(B, C))", macros, 100000);
+	benchmark("equal(A, A) && !!(equal(B, B) || equal(B, C)) && (!defined(DEFINED) || defined(VAL1))", macros, 100000);
 
 	getc(stdin);
 	return 0;

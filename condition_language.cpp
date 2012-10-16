@@ -2,8 +2,6 @@
 #include <string.h>
 #include <stdint.h>
 
-#include <assert.h>
-
 namespace condition_language {
 
 namespace {
@@ -66,7 +64,6 @@ namespace {
 		} error;
 	};
 
-	unsigned unsigned size(Stack& s) { return s.head - s.start; }
 	inline unsigned bytes_left(Stack& s) { return max(int(s.end - s.head), 0); }
 	inline void push(Stack& s, IdString32 val) { *(IdString32*)s.head = val; s.head += sizeof(IdString32); }
 	inline void push(Stack& s, char val) { *s.head = val; s.head += 1; }
@@ -240,7 +237,7 @@ Result run(
 	HashFunction hash,
 	void* user_data)
 {
-	unsigned char op_stack[64] = {0}; // 64 nested operators
+	unsigned char op_stack[64]; // 64 nested operators
 	Stack execution_stack = {stack_memory, stack_memory, stack_memory + stack_size};
 	Stack operator_stack = {op_stack, op_stack, op_stack + sizeof(op_stack)};
 	Context context = {execution_stack, operator_stack, intrinsics, num_intrinsics, hash, user_data};
@@ -249,9 +246,6 @@ Result run(
 
 	if (s != SUCCESS)
 		return Result(s, context.error.intrinsic, context.error.length);
-
-	assert(size(context.stack) == 1);
-	assert(size(context.operators) == 0);
 
 	return Result(POP(context.stack));
 }

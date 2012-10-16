@@ -3,7 +3,7 @@
 COMPILER = "g++"
 EXEC = "unit_test"
 # Use -DPLATFORM_BIG_ENDIAN for big endian platforms
-FLAGS = "-Wall -Wextra -g"
+FLAGS = "-Wall -Wextra -g -O2"
 
 OBJECTS = %w(condition_language.o unit_test.o)
 HEADERS = %w(condition_language.h)
