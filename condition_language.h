@@ -6,24 +6,37 @@ typedef unsigned IdString32;
 	Grammar
 	---------------------------------
 	CONDITION :=
-		LOGICAL
+		LOGICAL '\0'
 	
 	LOGICAL :=
-		TERNARY '&&' TERNARY
-		| TERNARY '||' TERNARY
-		| TERNARY
+		TERNARY LOGICAL_REST
+
+	LOGICAL_REST :=
+		'&&' LOGICAL
+		'||' LOGICAL
+		| ''
 
 	TERNARY :=
-		'!' INTRINSIC
+		'!' TERNARY
 		| INTRINSIC
 
 	INTRINSIC :=
 		IDENTIFIER '(' PARAMETERS ')'
-		| '(' CONDITION ')'
+		| '(' LOGICAL ')'
+
+	PARAMTERS :=
+		IDENTIFIER PARAMETERS_REST
+	
+	PARAMETERS_REST :=
+		',' PARAMETERS
+		| ''
 */
+
+unsigned hash (const char * key, unsigned len);
 
 namespace condition_language {
 	typedef bool(*IntrinsicFunction)(IdString32* arguments, unsigned n_arguments, void* user_data);
+	typedef unsigned(*HashFunction)(const char * key, unsigned length);
 
 	struct Intrinsic {
 		IdString32 name;
@@ -55,6 +68,7 @@ namespace condition_language {
 			const char* source,											///< Input expression
 			unsigned char* stack_memory,	unsigned stack_size,		///< Some memory for the execution stack
 			Intrinsic* intrinsics,			unsigned num_intrinsics,	///< A list of intrinsic function callbacks
+			HashFunction hash,											///< A 32-bit hash function used to hash string arguments and match intrinsic names
 			void* user_data												///< User data parameter passed to intrinsic callbacks
 		);
 }

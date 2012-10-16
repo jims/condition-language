@@ -1,9 +1,19 @@
 #include "condition_language.h"
+#include <string.h>
 #include <stdint.h>
+
+#include <assert.h>
 
 namespace condition_language {
 
 namespace {
+	#define CONSUME(s, c) { Status status = consume((s), (c)); if (SUCCESS != SUCCESS) return status; }
+	#define PARSE(what, s, ctx) { Status status = parse_##what((s), (ctx)); if (status != SUCCESS) return status; }
+	#define PUSH(s, val) { if (bytes_left((s)) < sizeof((val))) { return STACK_OVERFLOW; } else { push(s, val); } }
+	#define POP(s) pop(s)
+	#define POP_ID(s) pop_id(s)
+	#define EVAL(c) { Status s = evaluate_single(c); if (s != SUCCESS) return s; }
+
 	template<class T>
 	inline T max(const T& a, const T& b) {
 		return a > b ? a : b;
@@ -38,14 +48,17 @@ namespace {
 		unsigned char* start;
 		unsigned char* end;
 	};
-	enum { AND, OR, NEGATE };
+
+	enum Operator { AND, OR, NEGATE };
 
 	struct Context {
 		Stack stack;
 		Stack operators;
 		Intrinsic* intrinsics;
 		unsigned num_intrinsics;
+		HashFunction hash;
 		void* user_data;
+		unsigned num_params;
 
 		struct {
 			const char* intrinsic;
@@ -53,9 +66,32 @@ namespace {
 		} error;
 	};
 
-	inline unsigned bytes_left(Stack& s) { return max(s.end - s.head, 0l); }
-	inline void push(Stack& s, unsigned char val) { *++s.head = val; }
-	inline unsigned char pop(Stack& s) { return *s.head--; }
+	unsigned unsigned size(Stack& s) { return s.head - s.start; }
+	inline unsigned bytes_left(Stack& s) { return max(int(s.end - s.head), 0); }
+	inline void push(Stack& s, IdString32 val) { *(IdString32*)s.head = val; s.head += sizeof(IdString32); }
+	inline void push(Stack& s, char val) { *s.head = val; s.head += 1; }
+	inline unsigned char pop(Stack& s) { return *(s.head -= 1); }
+	inline IdString32 pop_id(Stack& s) { return *(IdString32*)(s.head -= sizeof(IdString32)); }
+
+	inline Status evaluate_single(Context& c) {
+		char a, b;
+		switch (POP(c.operators)) {
+			case NEGATE:
+				PUSH(c.stack, char(!POP(c.stack)));
+				return SUCCESS;
+			case AND:
+				a = POP(c.stack);
+				b = POP(c.stack);
+				PUSH(c.stack, char(a & b));
+				return SUCCESS;
+			case OR:
+				a = POP(c.stack);
+				b = POP(c.stack);
+				PUSH(c.stack, char(a | b));
+				return SUCCESS;
+		}
+		return PARSE_FAILURE;
+	}
 
 	inline void whitespace(const char*& s) {
 		static CharacterClass whitespace = " \t\n\r";
@@ -76,48 +112,122 @@ namespace {
 		return SUCCESS;
 	}
 
-	#define CONSUME(s, c) { Status status = consume((s), (c)); if (SUCCESS != SUCCESS) return status; }
-	#define PARSE(what, s, ctx) { Status status = parse_##what((s), (ctx)); if (status != SUCCESS) return status; }
-	#define PUSH(s, val) { if (bytes_left((s)) < sizeof((s))) { return STACK_OVERFLOW } else { push(s, val) } }
-	#define POP(s) pop(s)
+	inline Status parse_identifier(const char*& s, Context& c) {
+		static CharacterClass identifier = "abcdefghijklmnopqrstuvxyzwABCDEFGHIJKLMNOPQRSTUVXYZW_0123456789";
+		const char* start = s;
+		skip(s, identifier);
+		PUSH(c.stack, c.hash(start, s - start));
+		return SUCCESS;
+	}
 
-	inline Status parse_condition(const char*& s, Context& c) {
-		return parse_logical(s, c);
+	inline Status parse_parameters(const char*& s, Context& c);
+	inline Status parse_parameters_rest(const char*& s, Context& c) {
+		whitespace(s);
+		if (s[0] == ',') {
+			CONSUME(s, ',');
+			PARSE(parameters, s, c);
+		}
+		return SUCCESS;
+	}
+
+	inline Status parse_parameters(const char*& s, Context& c) {
+		whitespace(s);
+		PARSE(identifier, s, c);
+		++c.num_params;
+		PARSE(parameters_rest, s, c);
+		return SUCCESS;
+	}
+
+	inline Status parse_logical(const char*& s, Context& c);
+	inline Status parse_intrinsic(const char*& s, Context& c) {
+		whitespace(s);
+
+		if (s[0] == '(') {
+			CONSUME(s, '(');
+			PARSE(logical, s, c);
+			CONSUME(s, ')');
+			return SUCCESS;
+		}
+
+		const char* start = s;
+		PARSE(identifier, s, c);
+		IdString32 name = POP_ID(c.stack);
+		
+		// Look for a matching intrinsic function.
+		Intrinsic* intrinsic = 0;
+		for (unsigned i = 0; i != c.num_intrinsics; ++i) {
+			if (c.intrinsics[i].name == name) {
+				intrinsic = &c.intrinsics[i];
+				break;
+			}
+		}
+
+		if (!intrinsic) {
+			c.error.intrinsic = start;
+			c.error.length = s - start;
+			return UNDEFINED_INTRINSIC;
+		}
+
+		whitespace(s);
+		CONSUME(s, '(');
+		c.num_params = 0;
+		PARSE(parameters, s, c);
+		whitespace(s);
+		CONSUME(s, ')');
+
+		char result = intrinsic->function((IdString32*)c.stack.head - c.num_params, c.num_params, c.user_data);
+		for (unsigned i = 0; i != c.num_params; ++i)
+			POP_ID(c.stack);
+
+		PUSH(c.stack, result);
+		return SUCCESS;
+	}
+
+	inline Status parse_ternary(const char*& s, Context& c) {
+		whitespace(s);
+		bool eval = false;
+		if (s[0] == '!') {
+			CONSUME(s, '!');
+			PUSH(c.operators, char(NEGATE));
+			PARSE(ternary, s, c);
+			eval = true;
+		} else {
+			PARSE(intrinsic, s, c);
+		}
+
+		if (eval)
+			EVAL(c);
+		return SUCCESS;
+	}
+
+	inline Status parse_logical(const char*& s, Context& c);
+	inline Status parse_logical_rest(const char*& s, Context& c) {
+		whitespace(s);
+		if (s[0] == '&') {
+			CONSUME(s, '&');
+			CONSUME(s, '&');
+			PUSH(c.operators, char(AND));
+		} else if (s[0] == '|') {
+			CONSUME(s, '|');
+			CONSUME(s, '|');
+			PUSH(c.operators, char(OR));
+		} else {
+			return SUCCESS;
+		}
+
+		PARSE(logical, s, c);
+		EVAL(c);
+		return SUCCESS;
 	}
 
 	inline Status parse_logical(const char*& s, Context& c) {
 		PARSE(ternary, s, c);
-		whitespace(s);
-		char op = s[0];
-		if (op == '&' || op == '|')
-			return SUCCESS;
-
-		if (op == '&') {
-			CONSUME(s, '&');
-			CONSUME(s, '&');
-			PUSH(c.operators, AND);
-		} else if (op == '|') {
-			CONSUME(s, '|');
-			CONSUME(s, '|');
-			PUSH(c.operators, OR);
-		}
-		PARSE(ternary, s, c);
-		char a = POP(c.stack), b = POP(c.stack);
-
+		PARSE(logical_rest, s, c);
+		return SUCCESS;
 	}
 
-	inline Status parse_ternary(const char*& s, Context& c) {
-
-	}
-
-	inline Status parse_intrinsic(const char*& s, Context& c) {
-		static CharacterClass identifier = "abcdefghijklmnopqrstuvxyzwABCDEFGHIJKLMNOPQRSTUVXYZW_0123456789";
-		
-		whitespace(s);
-		const char* start = s;
-		skip(s, identifier);
-		unsigned len = s - start;
-		CONSUME(s, '(');
+	inline Status parse_condition(const char*& s, Context& c) {
+		return parse_logical(s, c);
 	}
 }
 
@@ -127,19 +237,23 @@ Result run(
 	unsigned stack_size,
 	Intrinsic* intrinsics,
 	unsigned num_intrinsics,
+	HashFunction hash,
 	void* user_data)
 {
-	unsigned char op_stack[64] = {0};
+	unsigned char op_stack[64] = {0}; // 64 nested operators
 	Stack execution_stack = {stack_memory, stack_memory, stack_memory + stack_size};
 	Stack operator_stack = {op_stack, op_stack, op_stack + sizeof(op_stack)};
-	Context context = {execution_stack, operator_stack, intrinsics, num_intrinsics, user_data, 0, 0};
+	Context context = {execution_stack, operator_stack, intrinsics, num_intrinsics, hash, user_data};
 
 	Status s = parse_condition(source, context);
 
 	if (s != SUCCESS)
 		return Result(s, context.error.intrinsic, context.error.length);
 
-	return Result(pop(execution_stack));
+	assert(size(context.stack) == 1);
+	assert(size(context.operators) == 0);
+
+	return Result(POP(context.stack));
 }
 
 } // condition_language
