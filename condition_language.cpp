@@ -5,7 +5,7 @@
 namespace condition_language {
 
 namespace {
-	#define CONSUME(s, c) { Status status = consume((s), (c)); if (SUCCESS != SUCCESS) return status; }
+	#define CONSUME(s, c) { Status status = consume((s), (c)); if (status != SUCCESS) return status; }
 	#define PARSE(what, s, ctx) { Status status = parse_##what((s), (ctx)); if (status != SUCCESS) return status; }
 	#define PUSH(s, val) { if (bytes_left((s)) < sizeof((val))) { return STACK_OVERFLOW; } else { push(s, val); } }
 	#define POP(s) pop(s)
@@ -112,7 +112,10 @@ namespace {
 	inline Status parse_identifier(const char*& s, Context& c) {
 		static CharacterClass identifier = "abcdefghijklmnopqrstuvxyzwABCDEFGHIJKLMNOPQRSTUVXYZW_0123456789";
 		const char* start = s;
-		skip(s, identifier);
+		CONSUME(s, identifier);
+		while (identifier.contains(*s))
+			CONSUME(s, identifier);
+		
 		PUSH(c.stack, c.hash(start, s - start));
 		return SUCCESS;
 	}
@@ -182,18 +185,14 @@ namespace {
 
 	inline Status parse_ternary(const char*& s, Context& c) {
 		whitespace(s);
-		bool eval = false;
 		if (s[0] == '!') {
 			CONSUME(s, '!');
 			PUSH(c.operators, char(NEGATE));
 			PARSE(ternary, s, c);
-			eval = true;
+			EVAL(c);
 		} else {
 			PARSE(intrinsic, s, c);
 		}
-
-		if (eval)
-			EVAL(c);
 		return SUCCESS;
 	}
 

@@ -57,7 +57,7 @@ namespace instrinsic {
 }
 
 void test_empty_string() {
-	unsigned char stack[2];
+	unsigned char stack[1];
 	condition_language::Result r = condition_language::run("", stack, sizeof(stack), 0, 0, hash, 0);
 	assert(r.exit_status == condition_language::PARSE_FAILURE);
 }
