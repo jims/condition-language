@@ -9,15 +9,15 @@ typedef unsigned IdString32;
 		LOGICAL '\0'
 	
 	LOGICAL :=
-		TERNARY LOGICAL_REST
+		UNARY LOGICAL_REST
 
 	LOGICAL_REST :=
 		'&&' LOGICAL
 		'||' LOGICAL
 		| ''
 
-	TERNARY :=
-		'!' TERNARY
+	UNARY :=
+		'!' UNARY
 		| INTRINSIC
 
 	INTRINSIC :=

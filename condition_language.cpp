@@ -183,12 +183,12 @@ namespace {
 		return SUCCESS;
 	}
 
-	inline Status parse_ternary(const char*& s, Context& c) {
+	inline Status parse_unary(const char*& s, Context& c) {
 		whitespace(s);
 		if (s[0] == '!') {
 			CONSUME(s, '!');
 			PUSH(c.operators, char(NEGATE));
-			PARSE(ternary, s, c);
+			PARSE(unary, s, c);
 			EVAL(c);
 		} else {
 			PARSE(intrinsic, s, c);
@@ -217,7 +217,7 @@ namespace {
 	}
 
 	inline Status parse_logical(const char*& s, Context& c) {
-		PARSE(ternary, s, c);
+		PARSE(unary, s, c);
 		PARSE(logical_rest, s, c);
 		return SUCCESS;
 	}
